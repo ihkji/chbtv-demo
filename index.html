@@ -192,6 +192,11 @@ details.excl[open] summary{color:var(--fg)}
 .zchip.lv0r::before{background:transparent;border:1px solid var(--off)}
 .zchip.lv1,.zchip.lv2,.zchip.lv3{border-color:var(--map-prov)}
 .zchip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.zchip[data-dim]{opacity:.38}
+.bsel{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.bsel select{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:3px 6px}
+.c-time .tl-k{font-size:11px;color:var(--muted);font-weight:500}
+.c-src b{font-weight:600}
 .strip-tools{margin-left:auto;display:flex;gap:10px;align-items:center}
 .filter-note{font-size:12px;color:var(--accent);display:flex;gap:6px;align-items:center}
 .filter-note button{background:none;border:1px solid var(--accent);border-radius:3px;padding:0 6px;cursor:pointer;color:var(--accent)}
@@ -606,6 +611,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
     <div id="zones" style="display:contents"></div>
     <div class="strip-tools">
       <div class="filter-note" id="filterNote" hidden></div>
+      <label class="bsel" title="선택한 보도국 관할 권역만 표시합니다(권역 외 중대 재난은 계속 표시). 이 PC 브라우저에 기억됩니다.">보도국 보기 <select id="bureauSel"><option value="">전체</option></select></label>
       <button type="button" class="toggle" id="showAll" aria-pressed="false">권역 외 전체 보기</button>
     </div>
   </section>
@@ -667,7 +673,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
       <div class="list" id="naturalList"></div>
     </section>
   </main>
-  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.12 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
+  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.15 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
 </div>
 
 <div class="hist-ov" id="histOv" hidden>
@@ -901,9 +907,52 @@ function sorter(track){
 }
 
 /* ===== 5. 상태 ===== */
-const state = { data:null, selected:null, zoneFilter:null, showAll:false, preFocus:false, tab:'social', lastYmd:'', view:{social:'nation',natural:'nation'} };
+const state = { bureauFilter:(function(){ try{ return localStorage.getItem('chbtv.bureau')||''; }catch(e){ return ''; } })(), selView:null, data:null, selected:null, zoneFilter:null, showAll:false, preFocus:false, tab:'social', lastYmd:'', view:{social:'nation',natural:'nation'} };
 
 /* ===== 6. 카드·목록 ===== */
+// v3.15 카드 시각: 문자가 여러 건이면 최초 발표와 최종 갱신을 함께, 한 건이면 발표 시각만
+function cardTimeHTML(ev, now){
+  var f = ev.firstAt || ev.issuedAt, l = ev.lastAt || ev.issuedAt, n = ev.msgCount || 1;
+  if (n <= 1 || f === l) return '<span class="c-time mono" title="발표 시각"><span class="tl-k">발표</span> <b>' + fmtTime(f, now) + '</b> · ' + ago(f, now) + '</span>';
+  return '<span class="c-time mono" title="최초 발표 ' + esc(fmtTime(f, now)) + ' · 최종 갱신 ' + esc(fmtTime(l, now)) + ' · 발표 ' + n + '건">'
+    + '<span class="tl-k">최초</span> ' + fmtTime(f, now) + ' <span class="tl-k">갱신</span> <b>' + fmtTime(l, now) + '</b> · ' + ago(l, now) + '</span>';
+}
+// v3.15 보도국 보기(사용자 선택, 브라우저별 기억)
+function bureauZones(name){
+  if (!name) return null;
+  var b = BUREAUS.find(function(x){ return x.name.replace('보도국','') === name; });
+  return b ? b.zones.map(function(z){ return z.id; }) : null;
+}
+function setBureau(name){
+  state.bureauFilter = name || '';
+  try { if (name) localStorage.setItem('chbtv.bureau', name); else localStorage.removeItem('chbtv.bureau'); } catch(e) {}
+  state.zoneFilter = null;
+  Object.keys(maps).forEach(function(k){ maps[k].setView(name || 'nation'); });
+  var sel = document.getElementById('bureauSel'); if (sel) sel.value = state.bureauFilter;
+  render();
+}
+function initBureauSel(){
+  var sel = document.getElementById('bureauSel'); if (!sel || sel.dataset.ready) return;
+  sel.dataset.ready = '1';
+  BUREAUS.forEach(function(b){ var o = document.createElement('option'); o.value = b.name.replace('보도국',''); o.textContent = b.name.replace('보도국',''); sel.appendChild(o); });
+  if (state.bureauFilter && !bureauZones(state.bureauFilter)) state.bureauFilter = '';
+  sel.value = state.bureauFilter;
+  sel.addEventListener('change', function(){ setBureau(sel.value); });
+}
+// v3.15 카드 선택 시 그 카드의 지도만 해당 권역으로 확대, 선택 해제·변경 시 원래 보기로 복귀(다른 지도는 그대로)
+function focusCardMap(prevId){
+  var D = state.data; if (!D) return;
+  var sv = state.selView; state.selView = null;
+  if (sv && maps[sv.track]) maps[sv.track].setView(sv.view);
+  var ev = state.selected && D.events.find(function(e){ return e.id === state.selected; });
+  if (!ev || state.zoneFilter || !maps[ev.track]) return;
+  var zs = zonesOf(ev); if (!zs.length) return;
+  var bs = zs.map(function(z){ return BUREAU_OF_ZONE[z]; }).filter(function(b, i, a){ return b && a.indexOf(b) === i; });
+  var v = zs.length === 1 ? 'Z:' + zs[0] : (bs.length === 1 ? bs[0] : null);
+  if (!v || v === state.view[ev.track]) return;
+  state.selView = { track: ev.track, view: state.view[ev.track] || 'nation' };
+  maps[ev.track].setView(v);
+}
 const etaOf = ev => (String(ev.body||'').match(/발효 예정 (\d{1,2}:\d{2})/)||[])[1] || '';
 function cardHTML(ev, now){
   const s = sevOf(ev), zs = zonesOf(ev), rel = ev.status==='released';
@@ -921,7 +970,7 @@ function cardHTML(ev, now){
       ${(o=>{ if(!o) return ''; const f=o.progress.filter(p=>p.s||p.n).length; const c=o.status==='완료'?'ok':o.status==='진행'?'go':'end';
           return `<span class="pill ntag ${c}" title="담당자 통보 · 착수/해당없음 회신 ${f}/${o.targets.length}">통보 ${esc(o.id)} · ${o.status==='완료'?'완료':`${f}/${o.targets.length}`}</span>`; })(lastOrderOf(ev.id))}
       <span class="c-type">${esc(ev.type)}</span>
-      <span class="c-time mono"><b>${fmtTime(ev.issuedAt,now)}</b> · ${ago(ev.issuedAt,now)}</span>
+      ${cardTimeHTML(ev, now)}
     </div>
     <h3>${esc(ev.title)}</h3>
     <p class="c-region">${esc(ev.regionText)}</p>
@@ -930,7 +979,7 @@ function cardHTML(ev, now){
     <p class="c-body">${esc(ev.body)}</p>
     <div class="c-foot">
       ${zs.length?zs.map(z=>`<span class="zt">${esc(z)}</span>`).join(''):'<span>권역 외</span>'}
-      <span>· ${esc(ev.source)}</span>
+      <span class="c-src">· 출처 <b>${esc(ev.source)}</b>${(ev.senders||[]).length?' · 발신 '+esc(ev.senders.join(', ')):''}</span>
       ${(ev.history||[]).length?`<span>· 후속·관련 문자 ${ev.history.length}건</span>`:''}
       ${ev.synthetic?'<span class="pill ghost">가상 샘플</span>':''}
     </div>
@@ -950,12 +999,14 @@ function listHTML(items, now){
 
 /* ===== 7. 렌더링 ===== */
 function render(){
+  if (!document.getElementById('bureauSel') || !document.getElementById('bureauSel').dataset.ready) { initBureauSel(); if (state.bureauFilter) Object.keys(maps).forEach(function(k){ if ((state.view[k]||'nation')==='nation') maps[k].setView(state.bureauFilter); }); }
   const D = state.data, now = D.meta.now;
   const timed = D.events.filter(e=>inTime(e,now));
   const evs = timed.filter(inScope);
   const hiddenOut = timed.filter(e=>!inScope(e));
   const zf = state.zoneFilter;
-  const pass = e => !zf || zonesOf(e).includes(zf);
+  const bfz = bureauZones(state.bureauFilter);   // v3.15 보도국 보기: 관할 권역 + 권역 외 중대 재난만
+  const pass = e => (!zf || zonesOf(e).includes(zf)) && (!bfz || !zonesOf(e).length || zonesOf(e).some(z=>bfz.indexOf(z)>=0));
 
   // 출처별 상태: 실패 1회 = 주의(노랑), 연속 2회 이상 = 이상(빨강). 마지막 수집이 40분 넘게 없으면 '수집 중단 의심'
   const dl = D.meta.delay || {};
@@ -990,11 +1041,11 @@ function render(){
     b.zones.map(z=>{
       const lv = Math.max(0,...act.filter(e=>zonesOf(e).includes(z.id)).map(sevOf));
       const relOnly = !lv && evs.some(e=>e.status==='released'&&zonesOf(e).includes(z.id));
-      return `<button type="button" class="zchip ${lv?'lv'+cl(lv):relOnly?'lv0r':''}" data-zone="${z.id}" aria-pressed="${zf===z.id}">${esc(z.id)}</button>`;
+      return `<button type="button" class="zchip ${lv?'lv'+cl(lv):relOnly?'lv0r':''}" data-zone="${z.id}" aria-pressed="${zf===z.id}"${bfz && bfz.indexOf(z.id)<0?' data-dim="1"':''}>${esc(z.id)}</button>`;
     }).join('')}</div>`).join('');
   const fn = $('#filterNote');
-  fn.hidden = !zf;
-  fn.innerHTML = zf ? `${esc(zf)} 권역만 표시 중 <button type="button" id="clearZone">해제</button>` : '';
+  fn.hidden = !zf && !state.bureauFilter;
+  fn.innerHTML = (!zf && state.bureauFilter) ? esc(state.bureauFilter)+' 보도국 관할만 표시 중 <button type="button" id="clearZone">해제</button>' : zf ? `${esc(zf)} 권역만 표시 중 <button type="button" id="clearZone">해제</button>` : '';
   $('#showAll').setAttribute('aria-pressed', state.showAll);
 
   ['social','natural'].forEach(t=>{
@@ -1096,7 +1147,7 @@ function createMap(track){
       const c=d.properties.code, l=lvl[c];
       return 'muni' + (l?' w'+cl(l):rel[c]?' wr':'') + (selCodes.has(c)?' hit':'');
     });
-    const allSel = state.data.events.find(e=>e.id===state.selected);
+    const allSel = state.data.events.find(e=>e.id===state.selected && e.track===track);   // v3.15 선택 카드 권역 강조는 그 카드의 지도에만
     const hz = new Set([state.zoneFilter, ...(allSel?zonesOf(allSel):[])].filter(Boolean));
     gZ.selectAll('path').classed('on',d=>hz.has(d.id));
     const g = gQ.selectAll('g.q').data(evs.filter(e=>e.quake), d=>d.id).join(enter=>{
@@ -1136,10 +1187,11 @@ function createMap(track){
 /* ===== 9. 이벤트 ===== */
 document.addEventListener('click', e=>{
   const card = e.target.closest('.card');
-  if(card){ state.selected = state.selected===card.dataset.id ? null : card.dataset.id; render(); return; }
+  if(card){ const prevSel = state.selected; state.selected = state.selected===card.dataset.id ? null : card.dataset.id; focusCardMap(prevSel); render(); return; }
   const z = e.target.closest('.zchip');
-  if(z){ state.zoneFilter = state.zoneFilter===z.dataset.zone ? null : z.dataset.zone; Object.values(maps).forEach(m=>m.setView(state.zoneFilter?'Z:'+state.zoneFilter:'nation')); render(); return; }
-  if(e.target.id==='clearZone'){ state.zoneFilter=null; Object.values(maps).forEach(m=>m.setView('nation')); render(); return; }
+  if(z){ state.zoneFilter = state.zoneFilter===z.dataset.zone ? null : z.dataset.zone; Object.values(maps).forEach(m=>m.setView(state.zoneFilter?'Z:'+state.zoneFilter:(state.bureauFilter||'nation'))); render(); return; }
+  if(e.target.id==='clearZone' && state.bureauFilter && !state.zoneFilter){ setBureau(''); return; }
+  if(e.target.id==='clearZone'){ state.zoneFilter=null; Object.values(maps).forEach(m=>m.setView(state.bureauFilter||'nation')); render(); return; }
   if(e.target.id==='showAll' || e.target.dataset.showall){ state.showAll=!state.showAll; render(); return; }
   if(e.target.id==='preBtn'){ state.preFocus=!state.preFocus; render(); return; }
   const tb = e.target.closest('.mtabs [data-tab]');
