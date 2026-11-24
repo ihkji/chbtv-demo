@@ -26,7 +26,7 @@ window.__PUBLIC_VIEWER__ = true; window.__DEMO__ = true;
       getDashboardData: function () { getData().then(function (j) { var d = JSON.parse(JSON.stringify(j.dash)); d.meta.publishedAt = j.publishedAt || d.meta.now; d.notify = null; delete d.viewer; ok(d); }, ng); },
       getSourceHistory: function (src) { (S.data && Date.now() - S.at < 60000 ? Promise.resolve(S.data) : getData()).then(function (j) { ok((j.srchist && j.srchist[src]) || { events: [] }); }, ng); },
       getHistory: off, requestNotify: off, requestRelease: off, requestUnrelease: off, requestDeleteOrders: off,
-      requestPostcheck: off, requestCollect: off, getCctvKey: off, getRadarKey: off, getHrfcoKey: function () {}, recordFlood: function () {}
+      requestPostcheck: off, requestCollect: off, getCctvKey: off, getRadarKey: off, getSatFrames: off, getHrfcoKey: function () {}, recordFlood: function () {}
     };
   }
   window.google = { script: { run: {
@@ -515,7 +515,11 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
 .cam-rad{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}.cam-rad button{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:2px 8px;cursor:pointer}.cam-rad button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
 .cam-kw{font-style:normal;font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:2px;padding:0 4px;margin-left:4px}
 .cap-mode{display:block;font-size:13px;margin:2px 0;cursor:pointer}.cap-en{min-height:70px}
-.rdr-stage{display:flex;justify-content:center;align-items:center;background:#0a0f13;min-height:420px;padding:8px}.rdr-stage img{max-width:100%;max-height:68vh}
+.rdr-stage{display:flex;justify-content:center;align-items:center;background:#0a0f13;min-height:420px;padding:8px}.rdr-stage img{max-width:100%;max-height:68vh}.rdr-stage svg{width:100%;max-width:635px;height:auto;max-height:68vh;overflow:hidden;background:#b4b4b4}
+.rdr-bg{fill:#f4f6f8}.rdr-zone{fill:none;stroke:#e8590c;stroke-width:1.8;vector-effect:non-scaling-stroke}.rdr-muni{fill:none;stroke:#e8590c;stroke-width:.6;stroke-dasharray:3 2;vector-effect:non-scaling-stroke;opacity:.8}
+.rdr-zlab{fill:#c2410c;font-weight:700;paint-order:stroke;stroke:#fff;stroke-linejoin:round;pointer-events:none}.rdr-mlab{fill:#333;paint-order:stroke;stroke:#fff;stroke-linejoin:round;pointer-events:none}
+.rdr-bar{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 16px 0}.rdr-seg{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);flex-wrap:wrap}.rdr-seg button{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:3px 9px;cursor:pointer}.rdr-seg button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.rdr-foot{flex-direction:column;align-items:flex-start;gap:2px}
 .rdr-ctl{display:flex;align-items:center;gap:10px;padding:8px 16px}.rdr-ctl input{flex:1}
 .cam-errline{margin-top:auto;font-size:11.5px;line-height:1.5;color:#ffb4a9;border:1px solid rgba(179,38,30,.6);background:rgba(179,38,30,.15);border-radius:4px;padding:6px 8px}
 .cam-none{border:1px dashed var(--line);border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.6}
@@ -679,7 +683,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
       <div class="list" id="naturalList"></div>
     </section>
   </main>
-  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.16 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
+  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.16.2 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
 </div>
 
 <div class="hist-ov" id="histOv" hidden>
@@ -745,10 +749,11 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
 
 <div class="hist-ov" id="rdrOv" hidden>
   <div class="hist" role="dialog" aria-modal="true" aria-labelledby="rdrTitle" style="width:min(760px,100%)">
-    <div class="hist-head"><h2 id="rdrTitle">기상 레이더</h2><span class="cam-ev" id="rdrTime"></span><button type="button" class="hbtn" id="rdrClose">닫기</button></div>
-    <div class="rdr-stage"><img id="rdrImg" alt="기상청 레이더 합성 영상"></div>
-    <div class="rdr-ctl"><button type="button" class="hbtn" id="rdrPlay">재생</button><input type="range" id="rdrRange" min="0" max="12" step="1" value="12" aria-label="영상 시각(5분 간격)"><button type="button" class="hbtn" id="rdrLatest">최신</button></div>
-    <div class="ntf-dlg-foot"><span class="cam-src" id="rdrMsg"></span><span class="cam-src">출처: 기상청 API허브 레이더 HSR 합성 분포도 · 최근 1시간(5분 간격) · 게시 지연으로 약 10분 전 영상이 최신</span></div>
+    <div class="hist-head"><h2 id="rdrTitle">기상 레이더·위성</h2><span class="cam-ev" id="rdrTime"></span><button type="button" class="hbtn" id="rdrClose">닫기</button></div>
+    <div class="rdr-bar"><div class="rdr-seg" id="rdrModes"><button type="button" data-wm="radar" aria-pressed="true">레이더</button><button type="button" data-wm="ir105" aria-pressed="false">위성 적외</button><button type="button" data-wm="rgb-hlc" aria-pressed="false">위성 RGB</button><button type="button" data-wm="vi006" aria-pressed="false">위성 가시</button></div><div class="rdr-seg" id="rdrViews"></div></div>
+    <div class="rdr-stage"><svg id="rdrSvg" viewBox="0 0 635 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label="기상청 레이더 합성 영상과 방송권역선"><rect x="-2000" y="-2000" width="5000" height="5000" class="rdr-bg"></rect><image id="rdrImgEl" x="0" y="0" width="635" height="620" preserveAspectRatio="none"></image><g id="rdrLay"></g></svg><img id="satImg" alt="천리안위성 2A호 영상" style="display:none"></div>
+    <div class="rdr-ctl"><button type="button" class="hbtn" id="rdrPlay">재생</button><input type="range" id="rdrRange" min="0" max="12" step="1" value="12" aria-label="영상 시각"><button type="button" class="hbtn" id="rdrLatest">최신</button></div>
+    <div class="ntf-dlg-foot rdr-foot"><span class="cam-src" id="rdrMsg"></span><span class="cam-src" id="rdrSrc"></span></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
@@ -773,7 +778,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
     <button type="button" class="act" id="actCaption" disabled title="카드를 먼저 선택하세요">방송자막 변환</button>
     <button type="button" class="act" id="actRelease" disabled title="카드를 먼저 선택하세요">해제 처리</button>
     <button type="button" class="act" id="actCctv" disabled title="카드를 먼저 선택하세요">관제영상</button>
-    <button type="button" class="act" id="actRadar" disabled title="기상청 레이더 영상(최근 1시간)">기상 레이더</button>
+    <button type="button" class="act" id="actRadar" disabled title="기상청 레이더·위성 영상(최근 1시간)">기상 레이더</button>
   </div>
 </footer>
 
@@ -1796,61 +1801,186 @@ document.addEventListener('click', function(e){
   if (rb && CAM.ev && CAM.all) { CAM.radius = +rb.dataset.rad; camApply(CAM.ev); }
 });
 
-/* ===== 14-2. v3.16 기상 레이더 (기상청 API허브 레이더 HSR 합성 분포도, 최근 1시간 5분 간격) =====
-   인증키는 버튼을 누를 때만 서버(getRadarKey, 승인자·연결된 사내 화면 전용)에서 받아 메모리에만 보관 */
-var RDR = { key:null, frames:[], idx:0, timer:null, back:0 };
-var RDR_SL = String.fromCharCode(47);
-var RDR_BASE = 'https:' + RDR_SL + RDR_SL + 'apihub.kma.go.kr' + RDR_SL + 'api' + RDR_SL + 'typ03' + RDR_SL + 'cgi' + RDR_SL + 'rdr' + RDR_SL + 'nph-rdr_cmp1_img';
+/* ===== 14-2. v3.16 기상 레이더·위성 (기상청 API허브) =====
+   - 레이더: HSR 합성 분포도(nph-rdr_cmp1_img, 5분 간격 13장). 관측 범위 안이 투명한 영상이라 밝은 바탕 위에 표시하고,
+     상황판 지도와 같은 경계로 방송권역선·권역 이름을 겹쳐 그림(영상 지도선에 맞춰 보정한 투영: 람베르트 30·60°N, 126°E·38°N 기준)
+   - 권역 확대: API 확대 인자(zoom_x·zoom_y)는 문서에 의미 설명이 없어 쓰지 않고, 같은 영상을 화면에서 확대(보도국 단위)
+   - 위성: 천리안 2A호 한반도 영역 기본관측 PNG(sat_file_down2.php, UTC 시각), 적외 IR105(주야간 구름)·가시 VI006(주간), 10분 간격 7장
+   인증키는 버튼을 누를 때만 서버(getRadarKey)에서 받아 메모리에만 보관 */
+var WX = { mode:'radar', key:null, frames:[], idx:0, timer:null, back:0, view:'nation', warn:'' };
+var WX_SL = String.fromCharCode(47), WX_HUB = 'https:' + WX_SL + WX_SL + 'apihub.kma.go.kr' + WX_SL + 'api' + WX_SL;
+var RDR_BASE = WX_HUB + 'typ03' + WX_SL + 'cgi' + WX_SL + 'rdr' + WX_SL + 'nph-rdr_cmp1_img';
 var RDR_Q = '&cmp=HSR&qcd=HSLP&obs=ECHD&color=C4&aws=0&acc=&map=HR&grid=2&legend=1&size=600&itv=5&zoom_level=0&zoom_x=0000000&zoom_y=0000000&gov=';
+var SAT_BASE = WX_HUB + 'typ01' + WX_SL + 'url' + WX_SL + 'sat_file_img_down.php';   /* v3.16.2 천리안 2A호 자료조회(신규) 1.4 요소별 이미지 다운로드 */
+var RDR_CAL = { w:635, h:620, s:3715, tx:257.5, ty:170.5 };          /* 11/24 15:05 영상 지도선과 상황판 경계 일치율 96% */
+var WX_MODES = { radar:{ name:'레이더', step:5, n:13, delay:10 }, ir105:{ name:'위성 적외(구름·주야간)', step:10, n:7, delay:20 }, 'rgb-hlc':{ name:'위성 RGB 상하층운', step:10, n:7, delay:20 }, vi006:{ name:'위성 가시(주간)', step:10, n:7, delay:20 } };
+var rdrProj = null, RDR_MAXK = 4;
+function wxM(){ return WX_MODES[WX.mode]; }
 function rdrKey(){
-  if (RDR.key) return Promise.resolve(RDR.key);
+  if (WX.key) return Promise.resolve(WX.key);
   return new Promise(function(ok, ng){
-    var run = google.script.run.withSuccessHandler(function(k){ RDR.key = k || null; if (k) ok(k); else ng(new Error('인증키 미설정(스크립트 속성 KMA_KEY)')); }).withFailureHandler(ng);
+    var run = google.script.run.withSuccessHandler(function(k){ WX.key = k || null; if (k) ok(k); else ng(new Error('인증키 미설정(스크립트 속성 KMA_KEY)')); }).withFailureHandler(ng);
     if (typeof run.getRadarKey !== 'function') { ng(new Error('서버에 getRadarKey 없음 — Code.gs v3.16 교체·새 버전 배포 필요')); return; }
     run.getRadarKey();
   });
 }
-function rdrTm(t){ var k = new Date(t + 9 * 3600e3); return '' + k.getUTCFullYear() + capPad(k.getUTCMonth() + 1) + capPad(k.getUTCDate()) + capPad(k.getUTCHours()) + capPad(k.getUTCMinutes()); }
-function rdrHm(t){ var k = new Date(t + 9 * 3600e3); return capPad(k.getUTCHours()) + ':' + capPad(k.getUTCMinutes()); }
+function wxTm(t, utc){ var k = new Date(t + (utc ? 0 : 9 * 3600e3)); return '' + k.getUTCFullYear() + capPad(k.getUTCMonth() + 1) + capPad(k.getUTCDate()) + capPad(k.getUTCHours()) + capPad(k.getUTCMinutes()); }
+function wxHm(t){ var k = new Date(t + 9 * 3600e3); return capPad(k.getUTCHours()) + ':' + capPad(k.getUTCMinutes()); }
 function rdrMsg(t, bad){ var m = $('#rdrMsg'); if (m) { m.textContent = t; m.style.color = bad ? 'var(--crit)' : 'var(--muted)'; } }
-function rdrFrames(){
-  var t = Date.now() - (10 + RDR.back * 5) * 60000; t -= t % 300000;          /* 10분 전(게시 지연 고려) 기준, 5분 단위 */
-  RDR.frames = []; for (var i = 12; i >= 0; i--) RDR.frames.push(t - i * 300000);
+function wxFrames(){
+  var m = wxM(), st = m.step * 60000, t = Date.now() - (m.delay + WX.back * m.step) * 60000; t -= t % st;
+  WX.frames = []; for (var i = m.n - 1; i >= 0; i--) WX.frames.push(t - i * st);
+  var r = $('#rdrRange'); r.max = m.n - 1;
 }
-function rdrShow(i){
-  RDR.idx = i;
-  var t = RDR.frames[i], img = $('#rdrImg');
-  $('#rdrRange').value = i; $('#rdrTime').textContent = rdrHm(t) + ' 영상' + (i === 12 ? ' (최신)' : ' (최신보다 ' + ((12 - i) * 5) + '분 전)');
-  img.onload = function(){ if (RDR.idx === i) rdrMsg(''); };
-  img.onerror = function(){
-    if (RDR.idx !== i) return;
-    if (i === 12 && RDR.back < 3) { RDR.back++; rdrFrames(); rdrShow(12); return; }   /* 최신 영상 미게시 → 5분씩 앞으로 최대 3회 */
-    rdrMsg('레이더 영상을 불러오지 못했습니다 — ① 기상청 API허브 「레이더 HSR 분포도」 활용신청 ② 스크립트 속성 KMA_KEY ③ 회사망 접속 차단 여부를 확인하세요', true);
-  };
+function wxUrl(t){
+  if (WX.mode === 'radar') return RDR_BASE + '?tm=' + wxTm(t) + RDR_Q + '&authKey=' + encodeURIComponent(WX.key);
+  /* 신규 1.4는 요소를 data 인자로 받음(요소별 자료안내 'API호출인자(img)'). 목록조회(1.2.x)는 chn을 쓰므로 둘 다 보냄 — 쓰지 않는 인자는 무시되는 것으로 가정(실호출 확인 필요) */
+  return SAT_BASE + '?lvl=l1b&data=' + encodeURIComponent(WX.mode) + '&chn=' + encodeURIComponent(WX.mode) + '&area=ko&tm=' + wxTm(t, true) + '&authKey=' + encodeURIComponent(WX.key);
+}
+function rdrOverlay(){
+  if (!rdrProj) rdrProj = d3.geoConicConformal().parallels([30, 60]).rotate([-126, 0]).center([0, 38]).scale(RDR_CAL.s).translate([RDR_CAL.tx, RDR_CAL.ty]);
+  var path = d3.geoPath(rdrProj), g = d3.select('#rdrLay'); g.selectAll('*').remove();
+  var fc = rdrFocus();
+  if (fc) g.append('g').selectAll('path').data(FEATS.filter(function(f){ return fc.has(f.properties.code); })).join('path').attr('class', 'rdr-muni').attr('d', path);
+  g.append('g').selectAll('path').data(ZONE_SHAPES).join('path').attr('class', 'rdr-zone').attr('d', function(d){ return path(d.shape); });
+  var k = rdrZoomK();
+  /* 전국 보기: 보도국 이름 7개만(수도권 겹침 방지) / 확대 보기: 권역 이름 + 넓은 시군구 이름 */
+  var labs = fc ? ZONE_SHAPES.map(function(z){ return { id: z.id, shape: z.shape }; })
+                : BUREAUS.map(function(b){ return { id: b.name.replace('보도국', ''), shape: topojson.merge(MUNI_TOPO, TOPO_OBJ.geometries.filter(function(gm){ return b.zones.some(function(z){ return z.codes.indexOf(gm.properties.code) >= 0; }); })) }; });
+  g.append('g').selectAll('text').data(labs).join('text').attr('class', 'rdr-zlab')
+    .attr('x', function(d){ return path.centroid(d.shape)[0]; }).attr('y', function(d){ return path.centroid(d.shape)[1]; })
+    .attr('font-size', (13 / k).toFixed(2)).attr('stroke-width', (3 / k).toFixed(2)).attr('text-anchor', 'middle').text(function(d){ return d.id; });
+  if (fc) g.append('g').selectAll('text').data(FEATS.filter(function(f){ return fc.has(f.properties.code) && path.area(f) * k * k > 900; })).join('text').attr('class', 'rdr-mlab')
+    .attr('x', function(d){ return path.centroid(d)[0]; }).attr('y', function(d){ return path.centroid(d)[1] + 12 / k; })
+    .attr('font-size', (10 / k).toFixed(2)).attr('stroke-width', (2.5 / k).toFixed(2)).attr('text-anchor', 'middle')
+    .text(function(d){ return String(d.properties.name).replace(/^[가-힣]+시(?=[가-힣]+구$)/, ''); });
+}
+function rdrFocus(){
+  if (WX.view === 'nation') return null;
+  var b = BUREAUS.find(function(x){ return x.name.replace('보도국', '') === WX.view; }); if (!b) return null;
+  return new Set(b.zones.flatMap(function(z){ return z.codes; }).filter(function(c){ return c !== '23520'; }));
+}
+function rdrBox(){
+  var fc = rdrFocus(); if (!fc) return [0, 0, RDR_CAL.w, RDR_CAL.h];
+  var path = d3.geoPath(rdrProj), bb = path.bounds({ type:'FeatureCollection', features: FEATS.filter(function(f){ return fc.has(f.properties.code); }) });
+  var x0 = bb[0][0], y0 = bb[0][1], w = bb[1][0] - x0, h = bb[1][1] - y0, pad = 0.18;
+  x0 -= w * pad; y0 -= h * pad; w *= 1 + 2 * pad; h *= 1 + 2 * pad;
+  var ar = RDR_CAL.w / RDR_CAL.h;
+  if (w / h > ar) { var nh = w / ar; y0 -= (nh - h) / 2; h = nh; } else { var nw = h * ar; x0 -= (nw - w) / 2; w = nw; }
+  var minW = RDR_CAL.w / RDR_MAXK;                                   /* 확대 상한(영상 해상도 한계): 좁은 권역도 주변 날씨가 보이게 */
+  if (w < minW) { var cx = x0 + w / 2, cy = y0 + h / 2; w = minW; h = minW / ar; x0 = cx - w / 2; y0 = cy - h / 2; }
+  return [x0, y0, w, h];
+}
+function rdrZoomK(){ return RDR_CAL.w / rdrBox()[2]; }
+function rdrView(v){
+  WX.view = v;
+  if (!rdrProj) rdrOverlay();
+  var bx = rdrBox(); $('#rdrSvg').setAttribute('viewBox', bx.map(function(x){ return x.toFixed(1); }).join(' '));
+  rdrOverlay();
+  document.querySelectorAll('#rdrViews [data-wv]').forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.wv === v); });
+}
+function wxModeUi(){
+  var rad = WX.mode === 'radar';
+  $('#rdrSvg').style.display = rad ? '' : 'none'; $('#satImg').style.display = rad ? 'none' : '';
+  $('#rdrViews').style.visibility = rad ? 'visible' : 'hidden';
+  document.querySelectorAll('#rdrModes [data-wm]').forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.wm === WX.mode); });
+  $('#rdrSrc').textContent = rad ? '출처: 기상청 API허브 레이더 HSR 합성 분포도 · 5분 간격 · 권역선·이름은 상황판 경계를 겹쳐 그린 것(영상 원본에는 없음) · 확대 시 영상 해상도(1칸 약 1.2km) 한계로 흐려짐'
+                                 : '출처: 기상청 API허브 천리안 2A호 자료조회(신규) 한반도 기본관측 영상 · 실제 게시된 최신 영상부터 10분 간격 · 시각은 한국시간 · RGB 상하층운: 낮=가시+적외 합성, 밤=적외';
+}
+function wxShow(i){
+  WX.idx = i;
+  var t = WX.frames[i], last = WX.frames.length - 1, m = wxM(), url = wxUrl(t), mode = WX.mode;
+  $('#rdrRange').value = i;
+  $('#rdrTime').textContent = m.name + ' · ' + wxHm(t) + (i === last ? ' (최신)' : ' (최신보다 ' + ((last - i) * m.step) + '분 전)');
   rdrMsg('영상 불러오는 중…');
-  img.src = RDR_BASE + '?tm=' + rdrTm(t) + RDR_Q + '&authKey=' + encodeURIComponent(RDR.key);
+  var im = new Image();
+  im.onload = function(){
+    if (WX.idx !== i || WX.mode !== mode) return;
+    if (mode === 'radar') {
+      $('#rdrImgEl').setAttribute('href', url);
+      var off = Math.abs(im.naturalWidth / im.naturalHeight - RDR_CAL.w / RDR_CAL.h) > 0.01;
+      rdrMsg(off ? '영상 크기(' + im.naturalWidth + '×' + im.naturalHeight + ')가 보정 기준과 달라 권역선 위치가 어긋날 수 있습니다' : '', off);
+    } else { $('#satImg').src = url; rdrMsg(WX.list ? '' : (WX.listErr || ''), !WX.list); }
+  };
+  im.onerror = function(){
+    if (WX.idx !== i || WX.mode !== mode) return;
+    if (i === last && WX.back < 3) { WX.back++; if (WX.list && WX.frames.length > 1) { WX.frames.pop(); $('#rdrRange').max = WX.frames.length - 1; } else wxFrames(); wxShow(WX.frames.length - 1); return; }     /* 최신 영상 미게시 → 한 단계씩 앞으로 최대 3회 */
+    rdrMsg(mode === 'radar' ? '레이더 영상을 불러오지 못했습니다 — ① 기상청 API허브 「레이더 HSR 분포도」 활용신청 ② 스크립트 속성 KMA_KEY ③ 회사망 접속 차단 여부를 확인하세요'
+                            : '위성 영상을 불러오지 못했습니다 — ① 기상청 API허브 「천리안 2A호 자료조회(신규) 1.4 요소별 이미지 다운로드」 활용신청 ② 가시 영상은 야간에 어둡게 나옴 ③ 회사망 접속 차단 여부를 확인하세요', true);
+  };
+  im.src = url;
 }
 function rdrPlay(on){
-  clearInterval(RDR.timer); RDR.timer = null;
+  clearInterval(WX.timer); WX.timer = null;
   var b = $('#rdrPlay'); if (b) b.textContent = on ? '정지' : '재생';
   if (!on) return;
-  var i = RDR.idx >= 12 ? 0 : RDR.idx;
-  rdrShow(i);
-  RDR.timer = setInterval(function(){ var n = RDR.idx + 1; if (n > 12) { rdrPlay(false); return; } rdrShow(n); }, 900);
+  var last = WX.frames.length - 1, i = WX.idx >= last ? 0 : WX.idx;
+  wxShow(i);
+  WX.timer = setInterval(function(){ var n = WX.idx + 1; if (n > last) { rdrPlay(false); return; } wxShow(n); }, WX.mode === 'radar' ? 900 : 1300);
 }
+/* v3.16.2 위성: 서버(getSatFrames)가 신규 1.2.2 이미지 파일 목록조회로 실제 게시된 영상 시각을 받아 옴 → 최신 영상부터 10분 간격 7장
+   목록 조회가 안 되면(활용신청 전 등) 이전 방식(추정 시각 + 미게시 시 앞 시각 재시도)으로 표시 */
+WX.list = false;
+function satFrames(){
+  return new Promise(function(ok, ng){
+    var run = google.script.run.withSuccessHandler(ok).withFailureHandler(ng);
+    if (typeof run.getSatFrames !== 'function') { ng(new Error('서버에 getSatFrames 없음 — Code.gs v3.16.2 교체·새 버전 배포 필요')); return; }
+    run.getSatFrames(WX.mode);
+  });
+}
+function wxPick(times){                            /* 'YYYYMMDDHHmm'(UTC) 목록 → 최신부터 10분 간격 7장(정확히 없으면 그 직전 영상) */
+  var ms = times.map(function(x){ return Date.UTC(+x.slice(0, 4), +x.slice(4, 6) - 1, +x.slice(6, 8), +x.slice(8, 10), +x.slice(10, 12)); })
+    .filter(function(v){ return !isNaN(v); }).sort(function(a, b){ return a - b; });
+  if (!ms.length) return [];
+  var m = wxM(), out = [], last = ms[ms.length - 1];
+  for (var k = m.n - 1; k >= 0; k--) {
+    var target = last - k * m.step * 60000, best = null;
+    ms.forEach(function(v){ if (v <= target && target - v < m.step * 60000) best = v; });
+    if (best !== null && out.indexOf(best) < 0) out.push(best);
+  }
+  return out;
+}
+function wxLoad(){
+  WX.back = 0; WX.list = false; WX.listErr = '';
+  if (WX.mode === 'radar') { wxFrames(); wxShow(WX.frames.length - 1); return; }
+  var mode = WX.mode; rdrMsg('최근 게시 영상 목록 확인 중…');
+  satFrames().then(function(r){
+    if (WX.mode !== mode) return;
+    var fr = wxPick((r && r.times) || []);
+    if (!fr.length) throw new Error((r && r.err) || '목록 없음');
+    WX.list = true; WX.frames = fr; $('#rdrRange').max = fr.length - 1; wxShow(fr.length - 1);
+  }).catch(function(e){
+    if (WX.mode !== mode) return;
+    wxFrames(); wxShow(WX.frames.length - 1);
+    WX.listErr = '영상 목록 조회 실패(' + String(e && e.message || e).slice(0, 80) + ') — 추정 시각으로 표시';
+  });
+}
+function wxSetMode(mode){ rdrPlay(false); WX.mode = mode; wxModeUi(); wxLoad(); }
 function openRadar(){
   $('#rdrOv').hidden = false; rdrMsg('인증키 확인 중…');
-  rdrKey().then(function(){ RDR.back = 0; rdrFrames(); rdrShow(12); })
+  if (!$('#rdrViews').dataset.ready) {
+    $('#rdrViews').dataset.ready = '1';
+    $('#rdrViews').innerHTML = '<span>권역 확대</span>' + ['nation'].concat(BUREAUS.map(function(b){ return b.name.replace('보도국', ''); }))
+      .map(function(v){ return '<button type="button" data-wv="' + v + '" aria-pressed="false">' + (v === 'nation' ? '전국' : v) + '</button>'; }).join('');
+  }
+  var sel = state.data && state.data.events.find(function(e){ return e.id === state.selected; });
+  var bz = sel ? zonesOf(sel).map(function(z){ return BUREAU_OF_ZONE[z]; }).filter(Boolean) : [];
+  rdrView(bz.length && bz.every(function(b){ return b === bz[0]; }) ? bz[0] : (state.bureauFilter || 'nation'));   /* 선택 카드의 보도국 → 보도국 보기 → 전국 */
+  wxModeUi();
+  rdrKey().then(function(){ wxLoad(); })
     .catch(function(e){ rdrMsg('기상 레이더를 열 수 없습니다 (' + String(e && e.message || e) + ')', true); });
 }
-function closeRadar(){ rdrPlay(false); $('#rdrOv').hidden = true; var img = $('#rdrImg'); if (img) { img.onerror = null; img.removeAttribute('src'); } }
+function closeRadar(){ rdrPlay(false); $('#rdrOv').hidden = true; }
 document.addEventListener('click', function(e){
-  if (e.target.closest && e.target.closest('#actRadar')) { openRadar(); return; }
+  if (!e.target.closest) return;
+  if (e.target.closest('#actRadar')) { openRadar(); return; }
   if (e.target.id === 'rdrClose') { closeRadar(); return; }
-  if (e.target.id === 'rdrPlay') { rdrPlay(!RDR.timer); return; }
-  if (e.target.id === 'rdrLatest') { rdrPlay(false); RDR.back = 0; rdrFrames(); rdrShow(12); return; }
+  if (e.target.id === 'rdrPlay') { rdrPlay(!WX.timer); return; }
+  if (e.target.id === 'rdrLatest') { rdrPlay(false); wxLoad(); return; }
+  var vb = e.target.closest('#rdrViews [data-wv]'); if (vb) { rdrView(vb.dataset.wv); return; }
+  var mb = e.target.closest('#rdrModes [data-wm]'); if (mb && WX.key) { wxSetMode(mb.dataset.wm); return; }
 });
-document.addEventListener('input', function(e){ if (e.target.id === 'rdrRange' && RDR.key) { rdrPlay(false); rdrShow(+e.target.value); } });
+document.addEventListener('input', function(e){ if (e.target.id === 'rdrRange' && WX.key) { rdrPlay(false); wxShow(+e.target.value); } });
 
 /* ===== 13. v3.4 해제 처리 / 해제 취소 ===== */
 const REL_REASONS = ['진화 완료','상황 종료','특보 해제','오탐·중복','기타'];
