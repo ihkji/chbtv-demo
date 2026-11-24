@@ -686,7 +686,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
       <div class="list" id="naturalList"></div>
     </section>
   </main>
-  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.16.5 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
+  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.17 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
 </div>
 
 <div class="hist-ov" id="histOv" hidden>
@@ -1248,6 +1248,7 @@ function previewText(ev, targets, out, test, cap){
     `■ 제목 : ${cut(ev.title,120)}`,
     ev.body ? `■ 내용 : ${cut(ev.body,500)}` : null,
     ev.regionText ? `■ 지역 : ${cut(ev.regionText,150)}` : null,
+    ev.place ? `■ 상세 위치 : ${cut(ev.place,60)}` : null,   // v3.17
     `■ 발표 : ${[iss, ev.source].filter(Boolean).join(' ')}`,
     `■ 대상 : ${allOut ? '전 보도국 (권역 외 사건)' : targets.join(', ')}`,
     `■ 요청 : 수신 즉시 [수신확인] → 방송 시작 시 [방송착수] / 방송 불필요 시 [해당없음]`,
@@ -1676,6 +1677,10 @@ function capEmd(ev){ var p = String(ev.id || '').split('|'); return (p[0] === 'S
 function capArea(ev){                             /* 3 발생지역: 시군구(+ 판정 v2.10 읍면동) */
   if (ev.quake) return String(ev.quake.epicenter || ev.regionText || '');
   var r = capRegion(ev), e = capEmd(ev);
+  if (ev.place) {                                   /* v3.17 상세 위치(번지·건물명·건물 유형)가 있으면 시군구 + 상세 위치 */
+    var base = r.replace(/ 등$/, ''), ws = (base + ' ' + ev.place).split(' ');
+    return ws.filter(function(w, k){ return w && ws.indexOf(w) === k; }).join(' ');
+  }
   if (e && r.indexOf(e) < 0) r = (r.replace(/ 등$/, '') + ' ' + e).trim();
   return r || zonesOf(ev).join(', ');
 }
