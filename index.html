@@ -26,7 +26,7 @@ window.__PUBLIC_VIEWER__ = true; window.__DEMO__ = true;
       getDashboardData: function () { getData().then(function (j) { var d = JSON.parse(JSON.stringify(j.dash)); d.meta.publishedAt = j.publishedAt || d.meta.now; d.notify = null; delete d.viewer; ok(d); }, ng); },
       getSourceHistory: function (src) { (S.data && Date.now() - S.at < 60000 ? Promise.resolve(S.data) : getData()).then(function (j) { ok((j.srchist && j.srchist[src]) || { events: [] }); }, ng); },
       getHistory: off, requestNotify: off, requestRelease: off, requestUnrelease: off, requestDeleteOrders: off,
-      requestPostcheck: off, requestCollect: off, getCctvKey: off, getHrfcoKey: function () {}, recordFlood: function () {}
+      requestPostcheck: off, requestCollect: off, getCctvKey: off, getRadarKey: off, getHrfcoKey: function () {}, recordFlood: function () {}
     };
   }
   window.google = { script: { run: {
@@ -50,7 +50,8 @@ window.__PUBLIC_VIEWER__ = true; window.__DEMO__ = true;
                    ['actNotify', '시연 버전입니다 — 담당자 통보는 사내 상황판에서만 사용할 수 있습니다', ''],
                    ['actCaption', '시연 버전입니다 — 방송자막 변환은 사내 상황판에서만 사용할 수 있습니다', ''],
                    ['actRelease', '시연 버전입니다 — 해제 처리는 사내 상황판에서만 사용할 수 있습니다', 'right'],
-                   ['actCctv', '시연 버전입니다 — 관제영상은 사내 상황판에서만 사용할 수 있습니다', 'right']];
+                   ['actCctv', '시연 버전입니다 — 관제영상은 사내 상황판에서만 사용할 수 있습니다', 'right'],
+                   ['actRadar', '시연 버전입니다 — 기상 레이더는 사내 상황판에서만 사용할 수 있습니다', 'right']];
     targets.forEach(function (t) {
       var b = document.getElementById(t[0]); if (!b || b.parentNode.classList.contains('demo-wrap')) return;
       var w = document.createElement('span'); w.className = 'demo-wrap' + (t[2] ? ' ' + t[2] : ''); w.setAttribute('data-demo-tip', t[1]);
@@ -511,6 +512,11 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
 .cam-slot{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 5px}
 .cam-side{display:flex;flex-direction:column;gap:6px;min-height:0}
 .cam-side h3{margin:0;font-size:12.5px;color:var(--muted);font-weight:600}
+.cam-rad{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}.cam-rad button{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:2px 8px;cursor:pointer}.cam-rad button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.cam-kw{font-style:normal;font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:2px;padding:0 4px;margin-left:4px}
+.cap-mode{display:block;font-size:13px;margin:2px 0;cursor:pointer}.cap-en{min-height:70px}
+.rdr-stage{display:flex;justify-content:center;align-items:center;background:#0a0f13;min-height:420px;padding:8px}.rdr-stage img{max-width:100%;max-height:68vh}
+.rdr-ctl{display:flex;align-items:center;gap:10px;padding:8px 16px}.rdr-ctl input{flex:1}
 .cam-errline{margin-top:auto;font-size:11.5px;line-height:1.5;color:#ffb4a9;border:1px solid rgba(179,38,30,.6);background:rgba(179,38,30,.15);border-radius:4px;padding:6px 8px}
 .cam-none{border:1px dashed var(--line);border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.6}
 .cam-none b{color:var(--mid)}
@@ -673,7 +679,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
       <div class="list" id="naturalList"></div>
     </section>
   </main>
-  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.15 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
+  <p class="map-note">지도 경계: 통계청 SGIS 행정동 경계(2026.10.1 기준) — 가공 vuski/admdongkor (공공누리 제1유형·CC BY 4.0). 특보구역은 시군구로 근사 표시, 권역 확대 시 읍면동 경계 표시. · 화면 v3.16 시연 버전(공개 재난정보 · 자료 조회 전용)</p>
 </div>
 
 <div class="hist-ov" id="histOv" hidden>
@@ -737,6 +743,14 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
   </div>
 </div>
 
+<div class="hist-ov" id="rdrOv" hidden>
+  <div class="hist" role="dialog" aria-modal="true" aria-labelledby="rdrTitle" style="width:min(760px,100%)">
+    <div class="hist-head"><h2 id="rdrTitle">기상 레이더</h2><span class="cam-ev" id="rdrTime"></span><button type="button" class="hbtn" id="rdrClose">닫기</button></div>
+    <div class="rdr-stage"><img id="rdrImg" alt="기상청 레이더 합성 영상"></div>
+    <div class="rdr-ctl"><button type="button" class="hbtn" id="rdrPlay">재생</button><input type="range" id="rdrRange" min="0" max="12" step="1" value="12" aria-label="영상 시각(5분 간격)"><button type="button" class="hbtn" id="rdrLatest">최신</button></div>
+    <div class="ntf-dlg-foot"><span class="cam-src" id="rdrMsg"></span><span class="cam-src">출처: 기상청 API허브 레이더 HSR 합성 분포도 · 최근 1시간(5분 간격) · 게시 지연으로 약 10분 전 영상이 최신</span></div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <div class="cfg-ov" id="cfgOv" hidden>
@@ -759,6 +773,7 @@ svg.map .elab{font-size:11px;fill:var(--muted);pointer-events:none;paint-order:s
     <button type="button" class="act" id="actCaption" disabled title="카드를 먼저 선택하세요">방송자막 변환</button>
     <button type="button" class="act" id="actRelease" disabled title="카드를 먼저 선택하세요">해제 처리</button>
     <button type="button" class="act" id="actCctv" disabled title="카드를 먼저 선택하세요">관제영상</button>
+    <button type="button" class="act" id="actRadar" disabled title="기상청 레이더 영상(최근 1시간)">기상 레이더</button>
   </div>
 </footer>
 
@@ -1245,6 +1260,8 @@ function renderNotifyUI(sel){
   if (ac) { const can = !!sel; ac.disabled = !can; ac.classList.toggle('on', can); ac.title = sel ? '선택한 사건의 방송자막안(한 줄 30자)을 만듭니다' : '카드를 먼저 선택하세요'; }
   const av = $('#actCctv');
   if (av) { const can = !!sel && GAS && (sel.areaCodes||[]).length>0; av.disabled = !can; av.classList.toggle('on', !!can); av.title = !GAS ? '상황판(Google 로그인)에서만 사용할 수 있습니다' : !sel ? '카드를 먼저 선택하세요' : !(sel.areaCodes||[]).length ? '지역 정보가 없는 사건입니다(해상 특보 등)' : '선택한 사건 주변 도로 CCTV 4대를 한 화면에 재생합니다'; }
+  const arr = $('#actRadar');   // v3.16 기상 레이더(카드 선택과 무관)
+  if (arr) { arr.disabled = !GAS; arr.classList.toggle('on', !!GAS); arr.title = GAS ? '기상청 레이더 영상(최근 1시간, 5분 간격)' : '상황판에서만 사용할 수 있습니다'; }
   const ar = $('#actRelease');
   if (ar) {
     const man = sel && sel.status==='released' && sel.manual;
@@ -1576,7 +1593,7 @@ function capWrap(text){
   if (line) out.push(line);
   return out;
 }
-function makeCaption(ev){
+function makeCaptionRaw(ev){
   let body = String(ev.body||'').replace(/\s+/g,' ').trim();
   let src = '';
   const m = body.match(/\[([^\]\[]{2,20})\]\s*$/); if (m) { src = m[1]; body = body.slice(0, m.index).trim(); }   // 끝의 [발신기관]
@@ -1591,9 +1608,11 @@ function openCap(){
   const ev = state.data && state.data.events.find(e=>e.id===state.selected); if (!ev) return;
   capEv = ev;
   $('#capBody').innerHTML = `<div class="ntf-sec ntf-ev"><h3>사건</h3><b>${esc(ev.title)}</b><p>${esc(ev.level||'')} · ${esc(ev.regionText||'')} · 발표 ${fmtTime(ev.issuedAt, state.data.meta.now)}</p></div>
+    ${capModeHtml()}
     <div class="ntf-sec"><h3>자막안 — 한 줄에 한 문구, 띄어쓰기 포함 최대 ${CAP_MAX}자 (직접 수정 가능)</h3><textarea class="cap-edit" id="capText" spellcheck="false"></textarea></div>
     <div class="ntf-sec"><h3>줄별 글자 수</h3><div class="cap-lines" id="capLines"></div></div>
-    <div class="cap-rule">머리말: [재난정보] 안전안내 · [재난속보] 긴급재난 · [긴급재난] 위급재난 · [기상특보] 주의보·경보 · [기상정보] 예비특보 · [지진정보] 지진. 원문 끝 [기관명]은 (기관명)으로 붙입니다. 수정한 자막안은 「담당자 통보」 문안에 포함됩니다.</div>`;
+    <div class="cap-rule">머리말: [재난정보] 안전안내 · [재난속보] 긴급재난 · [긴급재난] 위급재난 · [기상특보] 주의보·경보 · [기상정보] 예비특보 · [지진정보] 지진. 원문 끝 [기관명]은 (기관명)으로 붙입니다. 수정한 자막안은 「담당자 통보」 문안에 포함됩니다. 5개 항목 형식: 지역은 시군구(+읍면동), 행동요령은 원문의 행동 요청 문장(없으면 설정 시트 '행동요령_유형'), 발령기관은 원문 끝 [기관명] 또는 기상청.</div>
+    ${capEnHtml(ev)}`;
   $('#capText').value = capOf(ev).join('\n'); $('#capMsg').textContent = ''; $('#capOv').hidden = false; updCap();
 }
 function capLinesNow(){ return $('#capText').value.split('\n').map(l=>l.replace(/\s+$/,'')).filter(l=>l.trim()); }
@@ -1610,6 +1629,228 @@ function copyCap(){
   try { navigator.clipboard.writeText(t).then(ok, ()=>{ $('#capText').select(); document.execCommand('copy'); ok(); }); }
   catch (e) { $('#capText').select(); document.execCommand('copy'); ok(); }
 }
+
+
+/* ===== 12-1. v3.16 방송자막: 정부 요청 5개 항목 형식(발생시간 → 명칭 → 발생지역 → 행동요령 → 경보발령기관) · 영문 행동요령 =====
+   이 구역은 Apps Script 화면 변환과 충돌하지 않도록 템플릿 문자열·슬래시가 들어간 정규식을 쓰지 않음 */
+var CAP_MODE = 'five';
+function makeCaption(ev){ return CAP_MODE === 'raw' ? makeCaptionRaw(ev) : capFive(ev); }
+function capGuide(){ return (state.data && state.data.meta && state.data.meta.capGuide) || { en:{}, kr:{} }; }
+function capPad(n){ n = Number(n); return (n < 10 ? '0' : '') + n; }
+function capSplitSrc(ev){
+  var body = String(ev.body || '').replace(/\s+/g, ' ').trim(), src = '';
+  var m = body.match(/\[([^\]\[]{2,20})\]\s*$/); if (m) { src = m[1]; body = body.slice(0, m.index).trim(); }
+  body = body.replace(/^\[[^\]]{1,20}\]\s*/, '').replace(/\s*원문조회.*$/, '');
+  return { body: body, src: src };
+}
+function capTag(ev){
+  if (ev.quake) return '[지진정보]';
+  if (ev.track === 'social') return ev.level === '위급재난' ? '[긴급재난]' : ev.level === '긴급재난' ? '[재난속보]' : '[재난정보]';
+  return ev.level === '예비특보' ? '[기상정보]' : '[기상특보]';
+}
+function capWhen(ev, body){                       /* 1 발생시간: 사회재난은 문자 속 'HH:MM'·'HH시 MM분'(발생 시각), 없으면 최초 발표 시각 */
+  var d = new Date(ev.firstAt || ev.issuedAt), k = new Date(d.getTime() + 9 * 3600e3);
+  var md = capPad(k.getUTCMonth() + 1) + '.' + capPad(k.getUTCDate());
+  if (ev.track === 'social' && !ev.quake) {
+    var m = body.match(/(\d{1,2})\s*(?::|시)\s*(\d{2})/);
+    if (m && +m[1] < 24 && +m[2] < 60) return md + ' ' + capPad(m[1]) + ':' + m[2];
+  }
+  return md + ' ' + capPad(k.getUTCHours()) + ':' + capPad(k.getUTCMinutes());
+}
+function capName(ev){                             /* 2 명칭 */
+  var rel = ev.status === 'released';
+  if (ev.quake) return '규모 ' + Number(ev.quake.mag).toFixed(1) + ' 지진 발생';
+  if (ev.track === 'social') return (ev.type || ev.group) + (rel ? ' 상황 종료' : ' 발생');
+  return String(ev.group || '').replace(/·.*/, '') + (ev.level || '') + (rel ? ' 해제' : ev.level === '예비특보' ? ' 발표' : ' 발효');
+}
+function capEmd(ev){ var p = String(ev.id || '').split('|'); return (p[0] === 'S' && p.length === 5) ? p[3] : ''; }
+function capArea(ev){                             /* 3 발생지역: 시군구(+ 판정 v2.10 읍면동) */
+  if (ev.quake) return String(ev.quake.epicenter || ev.regionText || '');
+  var r = capRegion(ev), e = capEmd(ev);
+  if (e && r.indexOf(e) < 0) r = (r.replace(/ 등$/, '') + ' ' + e).trim();
+  return r || zonesOf(ev).join(', ');
+}
+var CAP_ACT = /(바랍니다|하세요|하십시오|주십시오|주시기|유의|자제|대피|우회|금지|삼가|조심|주의|피하|닫아|이동하)/;
+function capAction(ev, body){                     /* 4 행동요령: 원문 문장 중 행동 요청 문장, 없으면 설정 시트 '행동요령_그룹' */
+  var out = [];
+  if (ev.track === 'social' || ev.source === '긴급재난문자') {
+    body.replace(/([.!?])\s+/g, '$1\n').replace(/\s*([※▲■])/g, '\n$1').split('\n').forEach(function(s){
+      s = s.trim(); if (s && CAP_ACT.test(s) && out.indexOf(s) < 0) out.push(s);
+    });
+  }
+  if (out.length) return out.join(' ');
+  var g = capGuide().kr; return g[ev.group] || g[ev.type] || '';
+}
+function capAgency(ev, src){                      /* 5 경보발령기관 */
+  if (src) return src;
+  if (ev.quake || ev.source !== '긴급재난문자') return '기상청';
+  return (ev.senders || [])[0] || '';
+}
+function capFive(ev){
+  if (ev.flood) return makeCaptionRaw(ev);
+  var sp = capSplitSrc(ev), body = sp.body;
+  var head = capTag(ev) + ' ' + capWhen(ev, body), name = capName(ev);
+  var lines = (head + ' ' + name).length <= CAP_MAX ? [head + ' ' + name] : [head].concat(capWrap(name));
+  var area = capArea(ev); if (area) lines = lines.concat(capWrap('지역 : ' + area));
+  var act = capAction(ev, body); if (act) lines = lines.concat(capWrap(act));
+  var ag = capAgency(ev, sp.src); if (ag) lines = lines.concat(capWrap('발령기관 : ' + ag));
+  return lines;
+}
+function capModeHtml(){
+  return '<div class="ntf-sec"><h3>형식</h3><label class="cap-mode"><input type="radio" name="capMode" value="five"' + (CAP_MODE === 'five' ? ' checked' : '') + '> 정부 요청 5개 항목 (발생시간 → 명칭 → 발생지역 → 행동요령 → 경보발령기관)</label>' +
+    '<label class="cap-mode"><input type="radio" name="capMode" value="raw"' + (CAP_MODE === 'raw' ? ' checked' : '') + '> 원문형</label></div>';
+}
+function capEnKey(ev){                            /* 표준매뉴얼 영문 예시 7개 유형 */
+  var g = String(ev.group || ''), t = String(ev.title || '') + ' ' + String(ev.body || '');
+  if (g === '태풍' || g === '호우') return '태풍호우';
+  if (g === '폭염') return '폭염';
+  if (g === '대설') return '폭설';
+  if (g === '한파') return '한파';
+  if (g.indexOf('지진') === 0) return '지진';
+  if (g === '황사' || g === '미세먼지') return '황사미세먼지';
+  if (g === '화재' && t.indexOf('산불') >= 0) return '산불';
+  return '';
+}
+function capEnHtml(ev){
+  var k = capEnKey(ev), txt = k ? (capGuide().en[k] || '') : '';
+  var h = '<div class="ntf-sec"><h3>영문 자막 — 표준매뉴얼 국민행동요령 예시' + (k ? ' (' + esc(k) + ')' : '') + '</h3>';
+  if (!k) return h + '<div class="cap-rule">이 유형은 표준매뉴얼 영문 예시 대상이 아닙니다 (대상: 태풍·호우, 폭염, 폭설, 한파, 지진, 황사·초미세먼지, 산불)</div></div>';
+  if (!txt) return h + '<div class="cap-rule">설정 시트에 키 「영문행동요령_' + esc(k) + '」로 표준매뉴얼 문안을 넣으면 여기에 표시됩니다.</div></div>';
+  return h + '<textarea class="cap-edit cap-en" id="capEn" spellcheck="false">' + esc(txt) + '</textarea>' +
+    '<div class="cap-rule"><button type="button" class="hbtn" id="capEnCopy">영문 복사</button> 설정 시트의 표준매뉴얼 문안 그대로 표시합니다(수정은 설정 시트에서).</div></div>';
+}
+document.addEventListener('change', function(e){
+  if (e.target && e.target.name === 'capMode' && capEv) { CAP_MODE = e.target.value; delete CAP[capEv.id]; $('#capText').value = makeCaption(capEv).join('\n'); updCap(); }
+});
+document.addEventListener('click', function(e){
+  if (e.target.id === 'capEnCopy') {
+    var t = $('#capEn'); if (!t) return;
+    var ok = function(){ $('#capMsg').textContent = '영문을 복사했습니다'; $('#capMsg').style.color = 'var(--ok)'; };
+    try { navigator.clipboard.writeText(t.value).then(ok, function(){ t.select(); document.execCommand('copy'); ok(); }); } catch (x) { t.select(); document.execCommand('copy'); ok(); }
+  }
+});
+
+/* ===== 14-1. v3.16 관제영상: 반경(기본 1km) · 재난 유형별 우선 정렬 · 읍면동 기준점 =====
+   - 기준점: 판정 v2.10 읍면동이 있으면 그 읍면동 중심, 없으면 시군구 중심
+   - 반경 안 CCTV가 없으면 가까운 순으로 표시
+   - 사회재난(화재·사고 등): 거리순 / 자연재난: 카메라 이름 키워드 해당 카메라 먼저, 그다음 거리순 */
+var CAM_R = [1, 3, 5, 0];
+var CAM_KW = {
+  '호우': ['지하차도', '하상', '둔치', '제방', '대교', '교', '천', '강'],
+  '태풍': ['지하차도', '해안', '항', '대교', '교', '천', '강', '제방'],
+  '홍수': ['지하차도', '하상', '둔치', '제방', '대교', '교', '천', '강'],
+  '폭풍해일': ['해안', '항', '방조제', '대교'],
+  '풍랑': ['해안', '항', '방조제', '대교'],
+  '강풍': ['대교', '교', '해안', '고가'],
+  '대설': ['고개', '터널', '고가', '램프', 'IC', 'JC', '분기점', '대교', '교'],
+  '한파': ['대교', '교', '고가', '터널', '고개', '램프'],
+  '지진·지진해일': ['터널', '대교', '교', '고가']
+};
+function camKwRe(kw){ return new RegExp(kw === '교' ? '교(?!차|통)' : kw === '천' ? '천(?!안|원|호)' : kw === '강' ? '강(?!남|북|동|서|화)' : kw); }
+function camEmdCenter(ev){
+  var e = capEmd(ev); if (!e || typeof EMD_FEATS === 'undefined') return null;
+  var fs = EMD_FEATS.filter(function(f){ return (ev.areaCodes || []).indexOf(f.properties.scode) >= 0 && String(f.properties.name).replace(/[0-9]+동$/, '동') === e; });
+  if (!fs.length) return null;
+  return d3.geoCentroid({ type:'FeatureCollection', features: fs });
+}
+function camRank(ev, all, r){
+  var inR = r ? all.filter(function(x){ return x.km <= r; }) : all.slice(), note = '';
+  if (!inR.length) { inR = all.slice(); note = r + 'km 안 CCTV 없음 — 가까운 순'; }
+  var kws = ev.track === 'social' ? [] : (CAM_KW[ev.group] || []);
+  inR.forEach(function(x){ x.kw = ''; for (var i = 0; i < kws.length; i++) { if (camKwRe(kws[i]).test(x.name)) { x.kw = kws[i]; break; } } });
+  if (kws.length) inR.sort(function(a, b){ return (a.kw ? 0 : 1) - (b.kw ? 0 : 1) || a.km - b.km; });
+  return { items: inR.slice(0, CAM_LIST), note: note, kws: kws };
+}
+function camShow(ev, items, names, cx, cy, wrap){
+  var seen = {};
+  CAM.all = items.filter(function(x){ var key = x.name + x.url; if (seen[key]) return false; seen[key] = 1; return true; })
+    .map(function(x){ return Object.assign({}, x, { km: Math.round(camKm(x, cx, cy) * 10) / 10 }); })
+    .sort(function(a, b2){ return a.km - b2.km; });
+  if (!CAM.all.length) {
+    wrap.innerHTML = camLinksHtml(names, cx, cy, '<b>주변 카메라 없음</b> — 사건 지역 주변에 국가교통정보센터 고속도로·국도 CCTV가 없습니다. 도심 CCTV는 UTIC에서 확인하세요.');
+    return;
+  }
+  camApply(ev);
+}
+function camApply(ev){
+  var rk = camRank(ev, CAM.all, CAM.radius);
+  camStop(); CAM.items = rk.items; CAM.tiles = []; CAM.next = 0; camZoom(null); CAM.sel = null;
+  document.querySelectorAll('#camOv .cam-tile').forEach(function(t){ t.classList.remove('sel'); });
+  var ex = CAM.items.filter(function(x){ return x.road === 'ex'; }).length, its = CAM.items.length - ex;
+  var basis = rk.kws.length ? ('유형 우선(' + ev.group + ': ' + rk.kws.slice(0, 4).join('·') + ' 등) → 가까운 순') : '가까운 순';
+  CAM.head = (CAM.radius ? '반경 ' + CAM.radius + 'km' : '전체') + ' · ' + basis + ' ' + CAM.items.length + '대 (고속도로 ' + ex + ' · 국도 ' + its + ')' +
+    (rk.note ? ' · ' + rk.note : '') + ' · 기준점 ' + CAM.basis + ' · 칸을 누르면 확대';
+  var rad = $('#camRad');
+  if (rad) rad.innerHTML = '<span>반경</span>' + CAM_R.map(function(r){ return '<button type="button" data-rad="' + r + '" aria-pressed="' + (r === CAM.radius) + '">' + (r ? r + 'km' : '전체') + '</button>'; }).join('');
+  $('#camSideH').textContent = CAM.head;
+  $('#camList').innerHTML = CAM.items.map(function(it, i){
+      return '<button type="button" class="cam-item" data-cam="' + i + '" aria-pressed="false"><b>' + esc(it.name) + (it.kw ? ' <em class="cam-kw">' + esc(it.kw) + '</em>' : '') +
+        '</b><span>' + roadName(it.road) + ' · ' + it.km + 'km</span></button>';
+    }).join('') +
+    (its === 0 ? '<div class="cam-none"><b>국도 주변 카메라 없음</b><br>도심·국도 구간은 <a href="' + URL_UTIC + '" target="_blank" rel="noopener">UTIC</a> · <a href="' + URL_ITS + '" target="_blank" rel="noopener">국가교통정보센터</a>에서 확인</div>' : '');
+  for (var k = 0; k < CAM_N; k++) { if (k < CAM.items.length) camPlaySlot(k, k); else camEmpty(k, '주변 카메라 없음'); }
+  CAM.next = Math.min(CAM.items.length, CAM_N) % CAM_N;
+}
+document.addEventListener('click', function(e){
+  var rb = e.target.closest && e.target.closest('#camRad [data-rad]');
+  if (rb && CAM.ev && CAM.all) { CAM.radius = +rb.dataset.rad; camApply(CAM.ev); }
+});
+
+/* ===== 14-2. v3.16 기상 레이더 (기상청 API허브 레이더 HSR 합성 분포도, 최근 1시간 5분 간격) =====
+   인증키는 버튼을 누를 때만 서버(getRadarKey, 승인자·연결된 사내 화면 전용)에서 받아 메모리에만 보관 */
+var RDR = { key:null, frames:[], idx:0, timer:null, back:0 };
+var RDR_SL = String.fromCharCode(47);
+var RDR_BASE = 'https:' + RDR_SL + RDR_SL + 'apihub.kma.go.kr' + RDR_SL + 'api' + RDR_SL + 'typ03' + RDR_SL + 'cgi' + RDR_SL + 'rdr' + RDR_SL + 'nph-rdr_cmp1_img';
+var RDR_Q = '&cmp=HSR&qcd=HSLP&obs=ECHD&color=C4&aws=0&acc=&map=HR&grid=2&legend=1&size=600&itv=5&zoom_level=0&zoom_x=0000000&zoom_y=0000000&gov=';
+function rdrKey(){
+  if (RDR.key) return Promise.resolve(RDR.key);
+  return new Promise(function(ok, ng){
+    var run = google.script.run.withSuccessHandler(function(k){ RDR.key = k || null; if (k) ok(k); else ng(new Error('인증키 미설정(스크립트 속성 KMA_KEY)')); }).withFailureHandler(ng);
+    if (typeof run.getRadarKey !== 'function') { ng(new Error('서버에 getRadarKey 없음 — Code.gs v3.16 교체·새 버전 배포 필요')); return; }
+    run.getRadarKey();
+  });
+}
+function rdrTm(t){ var k = new Date(t + 9 * 3600e3); return '' + k.getUTCFullYear() + capPad(k.getUTCMonth() + 1) + capPad(k.getUTCDate()) + capPad(k.getUTCHours()) + capPad(k.getUTCMinutes()); }
+function rdrHm(t){ var k = new Date(t + 9 * 3600e3); return capPad(k.getUTCHours()) + ':' + capPad(k.getUTCMinutes()); }
+function rdrMsg(t, bad){ var m = $('#rdrMsg'); if (m) { m.textContent = t; m.style.color = bad ? 'var(--crit)' : 'var(--muted)'; } }
+function rdrFrames(){
+  var t = Date.now() - (10 + RDR.back * 5) * 60000; t -= t % 300000;          /* 10분 전(게시 지연 고려) 기준, 5분 단위 */
+  RDR.frames = []; for (var i = 12; i >= 0; i--) RDR.frames.push(t - i * 300000);
+}
+function rdrShow(i){
+  RDR.idx = i;
+  var t = RDR.frames[i], img = $('#rdrImg');
+  $('#rdrRange').value = i; $('#rdrTime').textContent = rdrHm(t) + ' 영상' + (i === 12 ? ' (최신)' : ' (최신보다 ' + ((12 - i) * 5) + '분 전)');
+  img.onload = function(){ if (RDR.idx === i) rdrMsg(''); };
+  img.onerror = function(){
+    if (RDR.idx !== i) return;
+    if (i === 12 && RDR.back < 3) { RDR.back++; rdrFrames(); rdrShow(12); return; }   /* 최신 영상 미게시 → 5분씩 앞으로 최대 3회 */
+    rdrMsg('레이더 영상을 불러오지 못했습니다 — ① 기상청 API허브 「레이더 HSR 분포도」 활용신청 ② 스크립트 속성 KMA_KEY ③ 회사망 접속 차단 여부를 확인하세요', true);
+  };
+  rdrMsg('영상 불러오는 중…');
+  img.src = RDR_BASE + '?tm=' + rdrTm(t) + RDR_Q + '&authKey=' + encodeURIComponent(RDR.key);
+}
+function rdrPlay(on){
+  clearInterval(RDR.timer); RDR.timer = null;
+  var b = $('#rdrPlay'); if (b) b.textContent = on ? '정지' : '재생';
+  if (!on) return;
+  var i = RDR.idx >= 12 ? 0 : RDR.idx;
+  rdrShow(i);
+  RDR.timer = setInterval(function(){ var n = RDR.idx + 1; if (n > 12) { rdrPlay(false); return; } rdrShow(n); }, 900);
+}
+function openRadar(){
+  $('#rdrOv').hidden = false; rdrMsg('인증키 확인 중…');
+  rdrKey().then(function(){ RDR.back = 0; rdrFrames(); rdrShow(12); })
+    .catch(function(e){ rdrMsg('기상 레이더를 열 수 없습니다 (' + String(e && e.message || e) + ')', true); });
+}
+function closeRadar(){ rdrPlay(false); $('#rdrOv').hidden = true; var img = $('#rdrImg'); if (img) { img.onerror = null; img.removeAttribute('src'); } }
+document.addEventListener('click', function(e){
+  if (e.target.closest && e.target.closest('#actRadar')) { openRadar(); return; }
+  if (e.target.id === 'rdrClose') { closeRadar(); return; }
+  if (e.target.id === 'rdrPlay') { rdrPlay(!RDR.timer); return; }
+  if (e.target.id === 'rdrLatest') { rdrPlay(false); RDR.back = 0; rdrFrames(); rdrShow(12); return; }
+});
+document.addEventListener('input', function(e){ if (e.target.id === 'rdrRange' && RDR.key) { rdrPlay(false); rdrShow(+e.target.value); } });
 
 /* ===== 13. v3.4 해제 처리 / 해제 취소 ===== */
 const REL_REASONS = ['진화 완료','상황 종료','특보 해제','오탐·중복','기타'];
@@ -1785,37 +2026,22 @@ function camKm(a, cx, cy){
 function openCam(){
   var ev = state.data && state.data.events.find(function(e){ return e.id === state.selected; }); if (!ev) return;
   var fs = FEATS.filter(function(f){ return (ev.areaCodes || []).indexOf(f.properties.code) >= 0; }); if (!fs.length) return;
-  camStop(); CAM.ev = ev; CAM.items = []; CAM.tiles = []; CAM.next = 0; CAM_ERR = {}; CAM.sel = null; CAM.zoom = null;
+  camStop(); CAM.ev = ev; CAM.items = []; CAM.tiles = []; CAM.next = 0; CAM_ERR = {}; CAM.sel = null; CAM.zoom = null; CAM.radius = 1; CAM.all = null;
   var fc = { type:'FeatureCollection', features: fs };
   var b = d3.geoBounds(fc), c = d3.geoCentroid(fc);
   var x0 = b[0][0], y0 = b[0][1], x1 = b[1][0], y1 = b[1][1], cx = c[0], cy = c[1];
+  var ec = camEmdCenter(ev); CAM.basis = ec ? capEmd(ev) + ' 중심' : '시군구 중심'; if (ec) { cx = ec[0]; cy = ec[1]; }   /* v3.16 읍면동 기준점 */
   var nm = []; fs.forEach(function(f){ if (nm.indexOf(f.properties.name) < 0) nm.push(f.properties.name); });
   var names = nm.slice(0, 6).join(', ');
   var wrap = $('#camOv').querySelector('.cam-wrap');
   $('#camEv').textContent = ev.title + ' · ' + (ev.regionText || '');
   wrap.innerHTML = '<div class="cam-grid">' + [0, 1, 2, 3].map(camTileHtml).join('') + '</div>' +
-    '<div class="cam-side"><h3 id="camSideH">주변 CCTV 찾는 중…</h3><div class="cam-list" id="camList"></div></div>';
+    '<div class="cam-side"><div class="cam-rad" id="camRad"></div><h3 id="camSideH">주변 CCTV 찾는 중…</h3><div class="cam-list" id="camList"></div></div>';
   $('#camOv').hidden = false;
   var box = function(pad){ return [+(x0 - pad).toFixed(4), +(x1 + pad).toFixed(4), +(y0 - pad).toFixed(4), +(y1 + pad).toFixed(4)]; };
   itsFetch(box(0.03)).then(function(items){ return items.length < CAM_N ? itsFetch(box(0.15)) : items; }).then(function(items){
     if (CAM.ev !== ev) return;
-    var seen = {};
-    CAM.items = items.filter(function(x){ var key = x.name + x.url; if (seen[key]) return false; seen[key] = 1; return true; })
-      .map(function(x){ return Object.assign({}, x, { km: Math.round(camKm(x, cx, cy) * 10) / 10 }); })
-      .sort(function(a, b2){ return a.km - b2.km; }).slice(0, CAM_LIST);
-    if (!CAM.items.length) {
-      wrap.innerHTML = camLinksHtml(names, cx, cy, '<b>주변 카메라 없음</b> — 사건 지역 주변에 국가교통정보센터 고속도로·국도 CCTV가 없습니다. 도심 CCTV는 UTIC에서 확인하세요.');
-      return;
-    }
-    var ex = CAM.items.filter(function(x){ return x.road === 'ex'; }).length, its = CAM.items.length - ex;
-    CAM.head = '가까운 순 ' + CAM.items.length + '대 (고속도로 ' + ex + ' · 국도 ' + its + ') · 칸을 누르면 확대 · 재생 안 되는 칸은 누른 뒤 목록에서 교체';
-    $('#camSideH').textContent = CAM.head;
-    $('#camList').innerHTML = CAM.items.map(function(it, i){
-        return '<button type="button" class="cam-item" data-cam="' + i + '" aria-pressed="false"><b>' + esc(it.name) + '</b><span>' + roadName(it.road) + ' · ' + it.km + 'km</span></button>';
-      }).join('') +
-      (its === 0 ? '<div class="cam-none"><b>국도 주변 카메라 없음</b><br>도심·국도 구간은 <a href="' + URL_UTIC + '" target="_blank" rel="noopener">UTIC</a> · <a href="' + URL_ITS + '" target="_blank" rel="noopener">국가교통정보센터</a>에서 확인</div>' : '');
-    for (var k = 0; k < CAM_N; k++) { if (k < CAM.items.length) camPlaySlot(k, k); else camEmpty(k, '주변 카메라 없음'); }
-    CAM.next = Math.min(CAM.items.length, CAM_N) % CAM_N;
+    camShow(ev, items, names, cx, cy, wrap);   /* v3.16 반경·유형 우선 정렬 */
   }).catch(function(e){
     if (CAM.ev !== ev) return;
     wrap.innerHTML = camLinksHtml(names, cx, cy, 'CCTV 목록을 불러오지 못했습니다 (' + esc(camMask(e && e.message || e)) + '). 공공 교통정보 사이트에서 확인하세요.');
